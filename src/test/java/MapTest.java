@@ -41,4 +41,20 @@ public class MapTest {
         Assertions.assertFalse(a.isEmpty());
     }
 
+    @Test
+    @DisplayName("containsKey()")
+    public void containsKeyTest() {
+        Map<Integer, Integer> a = new TreeMap<>();
+        a.put(10,100);
+        Assertions.assertTrue(a.containsKey(10));
+    }
+
+    @Test
+    @DisplayName("containsValue()")
+    public void containsValueTest() {
+        Map<Integer, Integer> a = new TreeMap<>();
+        a.put(10,10);
+        Assertions.assertTrue(a.containsKey(10));
+    }
+
 }
