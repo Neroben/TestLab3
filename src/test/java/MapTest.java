@@ -53,8 +53,9 @@ public class MapTest {
     @DisplayName("containsValue()")
     public void containsValueTest() {
         Map<Integer, Integer> a = new TreeMap<>();
-        a.put(10,10);
-        Assertions.assertTrue(a.containsKey(10));
+        a.put(10,100);
+        Assertions.assertTrue(a.containsValue(100));
     }
+
 
 }
