@@ -16,6 +16,7 @@ public interface Map<K,V> {
 
     V get(Object key);
 
+    @SuppressWarnings("UnusedReturnValue")
     V put(K key, V value);
 
     V remove(Object key);

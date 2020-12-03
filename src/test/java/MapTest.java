@@ -57,5 +57,13 @@ public class MapTest {
         Assertions.assertTrue(a.containsValue(100));
     }
 
+    @Test
+    @DisplayName("remove()")
+    public void removeTest() {
+        Map<Integer, Integer> a = new TreeMap<>();
+        a.put(10,100);
+        a.remove(10);
+        Assertions.assertFalse(a.containsKey(10));
+    }
 
 }
