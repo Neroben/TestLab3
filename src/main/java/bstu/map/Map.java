@@ -20,7 +20,7 @@ public interface Map<K,V> {
 
     V remove(Object key);
 
-    void putAll(java.util.Map<? extends K, ? extends V> m);
+    void putAll(Map<? extends K, ? extends V> m);
 
     void clear();
 
@@ -28,7 +28,7 @@ public interface Map<K,V> {
 
     Collection<V> values();
 
-    Set<java.util.Map.Entry<K, V>> entrySet();
+    Set<Entry<K, V>> entrySet();
 
     interface Entry<K, V> {
         K getKey();
@@ -78,7 +78,7 @@ public interface Map<K,V> {
 
     default void forEach(BiConsumer<? super K, ? super V> action) {
         Objects.requireNonNull(action);
-        for (java.util.Map.Entry<K, V> entry : entrySet()) {
+        for (Entry<K, V> entry : entrySet()) {
             K k;
             V v;
             try {
