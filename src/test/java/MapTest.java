@@ -32,4 +32,13 @@ public class MapTest {
         Assertions.assertEquals(100, a.get(10));
     }
 
+    @Test
+    @DisplayName("isEmpty()")
+    public void isEmptyTest() {
+        Map<Integer, Integer> a = new TreeMap<>();
+        Assertions.assertTrue(a.isEmpty());
+        a.put(10, 100);
+        Assertions.assertFalse(a.isEmpty());
+    }
+
 }
