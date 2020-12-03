@@ -1,8 +1,9 @@
 package bstu.map;
 
 import java.io.Serializable;
-import java.util.*;
-import java.util.function.BiConsumer;
+import java.util.Comparator;
+import java.util.Objects;
+import java.util.Set;
 
 public interface Map<K,V> {
 
@@ -25,11 +26,9 @@ public interface Map<K,V> {
 
     void clear();
 
-    Set<K> keySet();
-
-    Collection<V> values();
-
     Set<Entry<K, V>> entrySet();
+
+
 
     interface Entry<K, V> {
         K getKey();
@@ -42,19 +41,19 @@ public interface Map<K,V> {
 
         int hashCode();
 
-        public static <K extends Comparable<? super K>, V> Comparator<java.util.Map.Entry<K, V>> comparingByKey() {
-            return (Comparator<java.util.Map.Entry<K, V>> & Serializable)
+        public static <K extends Comparable<? super K>, V> Comparator<Entry<K, V>> comparingByKey() {
+            return (Comparator<Entry<K, V>> & Serializable)
                     (c1, c2) -> c1.getKey().compareTo(c2.getKey());
         }
 
-        public static <K, V extends Comparable<? super V>> Comparator<java.util.Map.Entry<K, V>> comparingByValue() {
-            return (Comparator<java.util.Map.Entry<K, V>> & Serializable)
+        public static <K, V extends Comparable<? super V>> Comparator<Entry<K, V>> comparingByValue() {
+            return (Comparator<Entry<K, V>> & Serializable)
                     (c1, c2) -> c1.getValue().compareTo(c2.getValue());
         }
 
-        public static <K, V> Comparator<java.util.Map.Entry<K, V>> comparingByKey(Comparator<? super K> cmp) {
+        public static <K, V> Comparator<Entry<K, V>> comparingByKey(Comparator<? super K> cmp) {
             Objects.requireNonNull(cmp);
-            return (Comparator<java.util.Map.Entry<K, V>> & Serializable)
+            return (Comparator<Entry<K, V>> & Serializable)
                     (c1, c2) -> cmp.compare(c1.getKey(), c2.getKey());
         }
 
@@ -69,27 +68,4 @@ public interface Map<K,V> {
     boolean equals(Object o);
 
     int hashCode();
-
-    default V getOrDefault(Object key, V defaultValue) {
-        V v;
-        return (((v = get(key)) != null) || containsKey(key))
-                ? v
-                : defaultValue;
-    }
-
-    default void forEach(BiConsumer<? super K, ? super V> action) {
-        Objects.requireNonNull(action);
-        for (Entry<K, V> entry : entrySet()) {
-            K k;
-            V v;
-            try {
-                k = entry.getKey();
-                v = entry.getValue();
-            } catch (IllegalStateException ise) {
-                // this usually means the entry is no longer in the map.
-                throw new ConcurrentModificationException(ise);
-            }
-            action.accept(k, v);
-        }
-    }
 }

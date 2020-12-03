@@ -2,11 +2,15 @@ package bstu.map.treemap;
 
 import bstu.map.Map;
 
+import java.io.Serializable;
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 
 public class TreeMap<K,V> implements Map<K,V> {
+
+    private transient EntrySet entrySet;
 
     private transient int size = 0;
 
@@ -502,9 +506,19 @@ public class TreeMap<K,V> implements Map<K,V> {
         return 31 - Integer.numberOfLeadingZeros(size + 1);
     }
 
+    final Entry<K,V> getLastEntry() {
+        Entry<K,V> p = root;
+        if (p != null)
+            while (p.right != null)
+                p = p.right;
+        return p;
+    }
+
     @Override
     public void clear() {
-        entrySet().clear();
+        modCount++;
+        size = 0;
+        root = null;
     }
 
     @Override
@@ -518,8 +532,9 @@ public class TreeMap<K,V> implements Map<K,V> {
     }
 
     @Override
-    public Set<Map.Entry<K, V>> entrySet() {
-        return null;
+    public Set<Map.Entry<K,V>> entrySet() {
+        EntrySet es = entrySet;
+        return (es != null) ? es : (entrySet = new EntrySet());
     }
 
     @Override
@@ -535,6 +550,25 @@ public class TreeMap<K,V> implements Map<K,V> {
     final int compare(Object k1, Object k2) {
         return comparator==null ? ((Comparable<? super K>)k1).compareTo((K)k2)
                 : comparator.compare((K)k1, (K)k2);
+    }
+
+    static <K,V> Entry<K,V> predecessor(Entry<K,V> t) {
+        if (t == null)
+            return null;
+        else if (t.left != null) {
+            Entry<K,V> p = t.left;
+            while (p.right != null)
+                p = p.right;
+            return p;
+        } else {
+            Entry<K,V> p = t.parent;
+            Entry<K,V> ch = t;
+            while (p != null && ch == p.left) {
+                ch = p;
+                p = p.parent;
+            }
+            return p;
+        }
     }
 
     final Entry<K,V> getFirstEntry() {
@@ -596,6 +630,236 @@ public class TreeMap<K,V> implements Map<K,V> {
 
         public String toString() {
             return key + "=" + value;
+        }
+    }
+
+    abstract class PrivateEntryIterator<T> implements Iterator<T> {
+        Entry<K,V> next;
+        Entry<K,V> lastReturned;
+        int expectedModCount;
+
+        PrivateEntryIterator(Entry<K,V> first) {
+            expectedModCount = modCount;
+            lastReturned = null;
+            next = first;
+        }
+
+        public final boolean hasNext() {
+            return next != null;
+        }
+
+        final Entry<K,V> nextEntry() {
+            Entry<K,V> e = next;
+            if (e == null)
+                throw new NoSuchElementException();
+            if (modCount != expectedModCount)
+                throw new ConcurrentModificationException();
+            next = successor(e);
+            lastReturned = e;
+            return e;
+        }
+
+        final Entry<K,V> prevEntry() {
+            Entry<K,V> e = next;
+            if (e == null)
+                throw new NoSuchElementException();
+            if (modCount != expectedModCount)
+                throw new ConcurrentModificationException();
+            next = predecessor(e);
+            lastReturned = e;
+            return e;
+        }
+
+        public void remove() {
+            if (lastReturned == null)
+                throw new IllegalStateException();
+            if (modCount != expectedModCount)
+                throw new ConcurrentModificationException();
+            // deleted entries are replaced by their successors
+            if (lastReturned.left != null && lastReturned.right != null)
+                next = lastReturned;
+            deleteEntry(lastReturned);
+            expectedModCount = modCount;
+            lastReturned = null;
+        }
+    }
+
+    final class EntryIterator extends PrivateEntryIterator<Map.Entry<K,V>> {
+        EntryIterator(Entry<K,V> first) {
+            super(first);
+        }
+        public Entry<K,V> next() {
+            return nextEntry();
+        }
+    }
+
+    class EntrySet extends AbstractSet<Map.Entry<K,V>> {
+        public Iterator<Map.Entry<K,V>> iterator() {
+            return new EntryIterator(getFirstEntry());
+        }
+
+        public boolean contains(Object o) {
+            if (!(o instanceof Entry))
+                return false;
+            Entry<?,?> entry = (Entry<?,?>) o;
+            Object value = entry.getValue();
+            Entry<K,V> p = getEntry(entry.getKey());
+            return p != null && valEquals(p.getValue(), value);
+        }
+
+        public boolean remove(Object o) {
+            if (!(o instanceof Map.Entry))
+                return false;
+            Map.Entry<?,?> entry = (Map.Entry<?,?>) o;
+            Object value = entry.getValue();
+            Entry<K,V> p = getEntry(entry.getKey());
+            if (p != null && valEquals(p.getValue(), value)) {
+                deleteEntry(p);
+                return true;
+            }
+            return false;
+        }
+
+        public int size() {
+            return this.size();
+        }
+
+        public void clear() {
+            this.clear();
+        }
+
+        public Spliterator<Map.Entry<K,V>> spliterator() {
+            return new EntrySpliterator<K,V>(TreeMap.this, null, null, 0, -1, 0);
+        }
+    }
+
+    static class TreeMapSpliterator<K,V> {
+        final TreeMap<K,V> tree;
+        Entry<K,V> current; // traverser; initially first node in range
+        Entry<K,V> fence;   // one past last, or null
+        int side;                   // 0: top, -1: is a left split, +1: right
+        int est;                    // size estimate (exact only for top-level)
+        int expectedModCount;       // for CME checks
+
+        TreeMapSpliterator(TreeMap<K,V> tree,
+                           Entry<K,V> origin, Entry<K,V> fence,
+                           int side, int est, int expectedModCount) {
+            this.tree = tree;
+            this.current = origin;
+            this.fence = fence;
+            this.side = side;
+            this.est = est;
+            this.expectedModCount = expectedModCount;
+        }
+
+        final int getEstimate() { // force initialization
+            int s; TreeMap<K,V> t;
+            if ((s = est) < 0) {
+                if ((t = tree) != null) {
+                    current = (s == -1) ? t.getFirstEntry() : t.getLastEntry();
+                    s = est = t.size;
+                    expectedModCount = t.modCount;
+                }
+                else
+                    s = est = 0;
+            }
+            return s;
+        }
+
+        public final long estimateSize() {
+            return getEstimate();
+        }
+    }
+
+    static final class EntrySpliterator<K,V>
+            extends TreeMapSpliterator<K,V>
+            implements Spliterator<Map.Entry<K,V>> {
+        EntrySpliterator(TreeMap<K,V> tree,
+                         Entry<K,V> origin, Entry<K,V> fence,
+                         int side, int est, int expectedModCount) {
+            super(tree, origin, fence, side, est, expectedModCount);
+        }
+
+        public EntrySpliterator<K,V> trySplit() {
+            if (est < 0)
+                getEstimate(); // force initialization
+            int d = side;
+            // empty
+            // was top
+            // was right
+            // was left
+            Entry<K,V> e = current, f = fence,
+                    s = e == null || e == f ? null :      // empty
+                            d == 0 ? tree.root : // was top
+                                    d >  0 ? e.right :   // was right
+                                            f != null ? f.left :    // was left
+                                                    null;
+            if (s != null && s != e && s != f &&
+                    tree.compare(e.key, s.key) < 0) {        // e not already past s
+                side = 1;
+                return new EntrySpliterator<>
+                        (tree, e, current = s, -1, est >>>= 1, expectedModCount);
+            }
+            return null;
+        }
+
+        public void forEachRemaining(Consumer<? super Map.Entry<K, V>> action) {
+            if (action == null)
+                throw new NullPointerException();
+            if (est < 0)
+                getEstimate(); // force initialization
+            Entry<K,V> f = fence, e, p, pl;
+            if ((e = current) != null && e != f) {
+                current = f; // exhaust
+                do {
+                    action.accept(e);
+                    if ((p = e.right) != null) {
+                        while ((pl = p.left) != null)
+                            p = pl;
+                    }
+                    else {
+                        while ((p = e.parent) != null && e == p.right)
+                            e = p;
+                    }
+                } while ((e = p) != null && e != f);
+                if (tree.modCount != expectedModCount)
+                    throw new ConcurrentModificationException();
+            }
+        }
+
+        public boolean tryAdvance(Consumer<? super Map.Entry<K,V>> action) {
+            Entry<K,V> e;
+            if (action == null)
+                throw new NullPointerException();
+            if (est < 0)
+                getEstimate(); // force initialization
+            if ((e = current) == null || e == fence)
+                return false;
+            current = successor(e);
+            action.accept(e);
+            if (tree.modCount != expectedModCount)
+                throw new ConcurrentModificationException();
+            return true;
+        }
+
+        public int characteristics() {
+            return (side == 0 ? Spliterator.SIZED : 0) |
+                    Spliterator.DISTINCT | Spliterator.SORTED | Spliterator.ORDERED;
+        }
+
+        @Override
+        public Comparator<Map.Entry<K, V>> getComparator() {
+            // Adapt or create a key-based comparator
+            if (tree.comparator != null) {
+                return Map.Entry.comparingByKey(tree.comparator);
+            }
+            else {
+                return (Comparator<Map.Entry<K, V>> & Serializable) (e1, e2) -> {
+                    @SuppressWarnings("unchecked")
+                    Comparable<? super K> k1 = (Comparable<? super K>) e1.getKey();
+                    return k1.compareTo(e2.getKey());
+                };
+            }
         }
     }
 }

@@ -66,4 +66,15 @@ public class MapTest {
         Assertions.assertFalse(a.containsKey(10));
     }
 
+    @Test
+    @DisplayName("clear()")
+    public void clearTest() {
+        Map<Integer, Integer> a = new TreeMap<>();
+        a.put(10,100);
+        a.put(101,100);
+        a.put(102,100);
+        a.clear();
+        Assertions.assertEquals(0, a.size());
+    }
+
 }
